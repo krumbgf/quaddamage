@@ -30,6 +30,7 @@
 using std::min;
 using std::max;
 
+SDL_Window* window = NULL;
 SDL_Surface* screen = NULL;
 SDL_Thread *render_thread;
 SDL_mutex *render_lock;
@@ -43,11 +44,12 @@ bool initGraphics(int frameWidth, int frameHeight, bool fullscreen)
 		printf("Cannot initialize SDL: %s\n", SDL_GetError());
 		return false;
 	}
-	int videoModeFlags = SDL_ASYNCBLIT;
-	if (fullscreen) videoModeFlags |= SDL_FULLSCREEN;
-	screen = SDL_SetVideoMode(frameWidth, frameHeight, 32, videoModeFlags );
-	if (!screen) {
-		printf("Cannot set video mode %dx%d - %s\n", frameWidth, frameHeight, SDL_GetError());
+	int videoModeFlags = 0; //SDL_ASYNCBLIT;
+	if (fullscreen) videoModeFlags |= SDL_WINDOW_FULLSCREEN;
+	window = SDL_CreateWindow("Quad Damage", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, frameWidth, frameHeight, videoModeFlags);
+	screen = SDL_GetWindowSurface(window);
+	if (!window || !screen) {
+		printf("Cannot create window %dx%d - %s\n", frameWidth, frameHeight, SDL_GetError());
 		return false;
 	}
 	render_lock = SDL_CreateMutex();
@@ -73,7 +75,7 @@ void displayVFB(Color vfb[VFB_MAX_SIZE][VFB_MAX_SIZE])
 		for (int x = 0; x < screen->w; x++)
 			row[x] = vfb[y][x].toRGB32(rs, gs, bs);
 	}
-	SDL_Flip(screen);
+	SDL_UpdateWindowSurface(window);
 }
 
 /// displays pixels, set to true in the given array in yellow on the screen
@@ -85,7 +87,7 @@ void markAApixels(bool needsAA[VFB_MAX_SIZE][VFB_MAX_SIZE])
 		for (int x = 0; x < screen->w; x++)
 			if (needsAA[y][x]) row[x] = YELLOW;
 	}
-	SDL_Flip(screen);
+	SDL_UpdateWindowSurface(window);
 }
 
 // find an unused file name like 'quad_damage_0005.bmp'
@@ -104,13 +106,13 @@ static void findUnusedFN(char fn[], const char* suffix)
 		fclose(f);
 		idx++;
 	}
-	sprintf(fn, "quad_damage_%04d.%s", idx, suffix); 
+	sprintf(fn, "quad_damage_%04d.%s", idx, suffix);
 }
 
 bool takeScreenshot(const char* filename)
 {
 	extern Color vfb[VFB_MAX_SIZE][VFB_MAX_SIZE]; // from main.cpp
-	
+
 	Bitmap bmp;
 	bmp.generateEmptyImage(frameWidth(), frameHeight());
 	for (int y = 0; y < frameHeight(); y++)
@@ -196,9 +198,9 @@ void setWindowCaption(const char* msg, float renderTime)
 	if (renderTime >= 0) {
 		char message[128];
 		sprintf(message, msg, renderTime);
-		SDL_WM_SetCaption(message, NULL);
+		SDL_SetWindowTitle(window, message);
 	} else {
-		SDL_WM_SetCaption(msg, NULL);
+		SDL_SetWindowTitle(window, msg);
 	}
 }
 
@@ -221,13 +223,13 @@ bool renderScene_threaded(void)
 	render_async = true;
 	rendering = true;
 	extern int renderSceneThread(void*);
-	render_thread = SDL_CreateThread(renderSceneThread, NULL);
-	
+	render_thread = SDL_CreateThread(renderSceneThread, NULL, NULL);
+
 	if(render_thread == NULL) { //Failed to start for some bloody reason
 		rendering = render_async = false;
 		return false;
 	}
-	
+
 	while (!wantToQuit) {
 		{
 			MutexRAII raii(render_lock);
@@ -243,7 +245,7 @@ bool renderScene_threaded(void)
 	rendering = false;
 	SDL_WaitThread(render_thread, NULL);
 	render_thread = NULL;
-	
+
 	render_async = false;
 	return true;
 }
@@ -280,23 +282,23 @@ std::vector<Rect> getBucketsList(void)
 bool drawRect(Rect r, const Color& c)
 {
 	MutexRAII raii(render_lock);
-	
+
 	if (render_async && !rendering) return false;
-	
+
 	r.clip(frameWidth(), frameHeight());
-	
+
 	int rs = screen->format->Rshift;
 	int gs = screen->format->Gshift;
 	int bs = screen->format->Bshift;
-	
-	Uint32 clr = c.toRGB32(rs, gs, bs);
+
+    Uint32 clr = c.toRGB32(rs, gs, bs);
 	for (int y = r.y0; y < r.y1; y++) {
 		Uint32 *row = (Uint32*) ((Uint8*) screen->pixels + y * screen->pitch);
 		for (int x = r.x0; x < r.x1; x++)
-			row[x] = clr;
-	}
-	SDL_UpdateRect(screen, r.x0, r.y0, r.w, r.h);
-	
+            row[x] = clr;
+    }
+    SDL_UpdateWindowSurface(window);
+
 	return true;
 }
 
@@ -305,7 +307,7 @@ bool displayVFBRect(Rect r, Color vfb[VFB_MAX_SIZE][VFB_MAX_SIZE])
 	MutexRAII raii(render_lock);
 
 	if (render_async && !rendering) return false;
-	
+
 	r.clip(frameWidth(), frameHeight());
 	int rs = screen->format->Rshift;
 	int gs = screen->format->Gshift;
@@ -315,8 +317,8 @@ bool displayVFBRect(Rect r, Color vfb[VFB_MAX_SIZE][VFB_MAX_SIZE])
 		for (int x = r.x0; x < r.x1; x++)
 			row[x] = vfb[y][x].toRGB32(rs, gs, bs);
 	}
-	SDL_UpdateRect(screen, r.x0, r.y0, r.w, r.h);
-	
+	SDL_UpdateWindowSurface(window);
+
 	return true;
 }
 
@@ -325,7 +327,7 @@ bool markRegion(Rect r, const Color& bracketColor)
 	MutexRAII raii(render_lock);
 
 	if (render_async && !rendering) return false;
-	
+
 	r.clip(frameWidth(), frameHeight());
 	const int L = 8;
 	if (r.w < L+3 || r.h < L+3) return true; // region is too small to be marked
@@ -342,7 +344,7 @@ bool markRegion(Rect r, const Color& bracketColor)
 		DRAW_ONE(y, r.h - 1 - (x), color); \
 		DRAW_ONE(r.w - 1 - (x), r.h - 1 - (y), color); \
 		DRAW_ONE(r.w - 1 - (y), r.h - 1 - (x), color)
-	
+
 	for (int i = 1; i <= L; i++) {
 		DRAW(i, 0, OUTLINE_COLOR);
 	}
@@ -354,9 +356,8 @@ bool markRegion(Rect r, const Color& bracketColor)
 	for  (int i = 2; i <= L; i++) {
 		DRAW(i, 1, BRACKET_COLOR);
 	}
-	
-	SDL_UpdateRect(screen, r.x0, r.y0, r.w, r.h);
-	
+	SDL_UpdateWindowSurface(window);
+
 	return true;
 }
 

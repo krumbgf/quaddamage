@@ -34,7 +34,7 @@ Color raytrace(const Ray& ray)
 	for (auto& node: scene.nodes) {
 		IntersectionInfo info;
 		if (!node->intersect(ray, info)) continue;
-		
+
 		if (info.distance < closestDist) {
 			closestDist = info.distance;
 			closestNode = node;
@@ -70,51 +70,51 @@ Color explicitLightSample(const Ray& ray, const IntersectionInfo& info, const Co
 {
 	// try to end a path by explicitly sampling a light. If there are no lights, we can't do that:
 	if (scene.lights.empty()) return Color(0, 0, 0);
-	
+
 	// choose a random light:
 	int lightIdx = rnd.randint(0, scene.lights.size() - 1);
 	Light* chosenLight = scene.lights[lightIdx];
-	
+
 	// evaluate light's solid angle as viewed from the intersection point, x:
 	Vector x = info.ip;
 	double solidAngle = chosenLight->solidAngle(x);
-	
+
 	// is light is too small or invisible?
 	if (solidAngle == 0) return Color(0, 0, 0);
-	
+
 	// choose a random point on the light:
 	int samplesInLight = chosenLight->getNumSamples();
 	int randSample = rnd.randint(0, samplesInLight - 1);
-	
+
 	Vector pointOnLight;
 	Color unused;
 	chosenLight->getNthSample(randSample, x, pointOnLight, unused);
-	
+
 	// camera -> ... path ... -> x -> lightPos
 	//                       are x and lightPos visible?
 	if (!visibilityCheck(x + info.normal * 1e-6, pointOnLight))
 		return Color(0, 0, 0);
-	
+
 	// get the emitted light energy (color * power):
 	Color L = chosenLight->getColor();
-	
-	
+
+
 	// evaluate BRDF. It might be zero (e.g., pure reflection), so bail out early if that's the case
 	Vector w_out = pointOnLight - x;
 	w_out.normalize();
 	Color brdfAtPoint = shader->eval(info, ray.dir, w_out);
 	if (brdfAtPoint.intensity() == 0) return Color(0, 0, 0);
-	
+
 	// probability to hit this light's projection on the hemisphere
 	// (conditional probability, since we're specifically aiming for this light):
 	float probHitLightArea = 1.0f / solidAngle;
-	
+
 	// probability to pick this light out of all N lights:
 	float probPickThisLight = 1.0f / scene.lights.size();
-	
+
 	// combined probability of this generated w_out ray:
 	float chooseLightProb = probHitLightArea * probPickThisLight;
-	
+
 	/* Light flux (Li) */ /* BRDFs@path*/  /*last BRDF*/ /*MC probability*/
 	return     L       *   pathMultiplier * brdfAtPoint / chooseLightProb;
 }
@@ -129,7 +129,7 @@ Color pathtrace(Ray ray, const Color& pathMultiplier, Random& rnd)
 	for (auto& node: scene.nodes) {
 		IntersectionInfo info;
 		if (!node->intersect(ray, info)) continue;
-		
+
 		if (info.distance < closestDist) {
 			closestDist = info.distance;
 			closestNode = node;
@@ -149,7 +149,7 @@ Color pathtrace(Ray ray, const Color& pathMultiplier, Random& rnd)
 		if (!(ray.flags & RF_DIFFUSE)) {
 			// forbid light contributions after a diffuse reflection
 			return hitLightColor * pathMultiplier;
-		} else 
+		} else
 			return Color(0, 0, 0);
 	}
 
@@ -159,29 +159,29 @@ Color pathtrace(Ray ray, const Color& pathMultiplier, Random& rnd)
 			return scene.environment->getEnvironment(ray.dir) * pathMultiplier;
 		else return Color(0, 0, 0);
 	}
-	
+
 	closestInfo.rayDir = ray.dir;
 	if (closestNode->bump)
 		closestNode->bump->modifyNormal(closestInfo);
-	
+
 	// ("sampling the light"):
 	// try to end the current path with explicit sampling of some light
-	Color contribLight = explicitLightSample(ray, closestInfo, pathMultiplier, 
+	Color contribLight = explicitLightSample(ray, closestInfo, pathMultiplier,
 											closestNode->shader, rnd);
 	// ("sampling the BRDF"):
-	// also try to extend the current path randomly: 
+	// also try to extend the current path randomly:
 	Ray w_out = ray;
 	w_out.depth++;
 	Color brdf;
 	float pdf;
 	closestNode->shader->spawnRay(closestInfo, ray.dir, w_out, brdf, pdf);
-	
+
 	if (pdf == -1) return Color(1, 0, 0); // BRDF not implemented
 	if (pdf == 0) return Color(0, 0, 0);  // BRDF is zero
-	
-	
+
+
 	Color contribGI = pathtrace(w_out, pathMultiplier * brdf / pdf, rnd);
-	return contribLight + contribGI;	
+	return contribLight + contribGI;
 }
 
 bool visibilityCheck(const Vector& start, const Vector& end)
@@ -190,13 +190,13 @@ bool visibilityCheck(const Vector& start, const Vector& end)
 	ray.start = start;
 	ray.dir = end - start;
 	ray.dir.normalize();
-	
+
 	double targetDist = (end - start).length();
-	
+
 	for (auto& node: scene.nodes) {
 		IntersectionInfo info;
 		if (!node->intersect(ray, info)) continue;
-		
+
 		if (info.distance < targetDist) {
 			return false;
 		}
@@ -213,23 +213,23 @@ void debugRayTrace(int x, int y)
 
 Color raytraceSinglePixel(double x, double y)
 {
-	auto getRay = scene.camera->dof ? 
-		[](double x, double y, int whichCamera) {
+	std::function<Ray(double, double, int)> getRay = scene.camera->dof ?
+	std::function<Ray(double, double, int)>([](double x, double y, int whichCamera) {
 			return scene.camera->getDOFRay(x, y, whichCamera);
-		} :
-		[](double x, double y, int whichCamera) {
+		}) :
+	std::function<Ray(double, double, int)>([](double x, double y, int whichCamera) {
 			return scene.camera->getScreenRay(x, y, whichCamera);
-		};
-	
-	auto trace = scene.settings.gi ? 
-		[](const Ray& ray) { 
+		});
+
+		std::function<Color(const Ray&)> trace = scene.settings.gi ?
+		std::function<Color(const Ray&)>([](const Ray& ray) {
 			Random& rnd = getRandomGen();
-			return pathtrace(ray, Color(1, 1, 1), rnd); 
-		} :
-		[](const Ray& ray) { 
-			return raytrace(ray); 
-		};
-		
+			return pathtrace(ray, Color(1, 1, 1), rnd);
+		}) :
+		std::function<Color(const Ray&)>([](const Ray& ray) {
+			return raytrace(ray);
+		});
+
 	if (scene.camera->stereoSeparation > 0) {
 		Ray leftRay = getRay(x, y, CAMERA_LEFT);
 		Ray rightRay= getRay(x, y, CAMERA_RIGHT);
@@ -238,9 +238,9 @@ Color raytraceSinglePixel(double x, double y)
 		if (scene.settings.saturation != 1) {
 			colorLeft.adjustSaturation(scene.settings.saturation);
 			colorRight.adjustSaturation(scene.settings.saturation);
-		
+
 		}
-		return  colorLeft * scene.camera->leftMask 
+		return  colorLeft * scene.camera->leftMask
 		      + colorRight* scene.camera->rightMask;
 	} else {
 		Ray ray = getRay(x, y, CAMERA_CENTRAL);
@@ -262,15 +262,15 @@ Color renderGIPixel(int x, int y)
 {
 	Color sum(0, 0, 0);
 	int N = scene.settings.numPaths;
-	
+
 	Random rnd = getRandomGen();
 	for (int i = 0; i < N; i++) {
 		Ray ray = scene.camera->getScreenRay(
 			x + rnd.randdouble(), y + rnd.randdouble()
 		);
-		sum += pathtrace(ray, Color(1, 1, 1), rnd); 
+		sum += pathtrace(ray, Color(1, 1, 1), rnd);
 	}
-	
+
 	return sum / N;
 }
 
@@ -334,7 +334,7 @@ struct MainRenderTask: public RenderScreenTask {
 	{
 		finalPass = !scene.settings.needAApass();
 	}
-	
+
 	void entry(int threadIdx, int threadCount)
 	{
 		int i;
@@ -354,13 +354,13 @@ struct MainRenderTask: public RenderScreenTask {
 // (as detected by detectAApixels()).
 struct RefineRenderTask: public RenderScreenTask {
 	RefineRenderTask(const vector<Rect>& buckets): RenderScreenTask(buckets) {}
-	
+
 	void entry(int threadIdx, int threadCount)
 	{
 		const double kernel[5][2] = {
 			// note that this sample is already rendered in vfb[][]:
-			{ 0.0, 0.0 }, 
-			
+			{ 0.0, 0.0 },
+
 			// refinement adds these samples:
 			{ 0.6, 0.0 },
 			{ 0.0, 0.6 },
@@ -373,13 +373,13 @@ struct RefineRenderTask: public RenderScreenTask {
 			// see if the bucket contains anything interesting at all:
 			bool skipBucket = true;
 			for (int y = r.y0; y < r.y1 && skipBucket; y++)
-				for (int x = r.x0; x < r.x1; x++) 
+				for (int x = r.x0; x < r.x1; x++)
 					if (needsAA[y][x]) {
 						skipBucket = false;
 						break;
 					}
 			if (skipBucket) continue;
-			
+
 			if (!markRegion(r)) return;
 			for (int y = r.y0; y < r.y1; y++)
 				for (int x = r.x0; x < r.x1; x++) {
@@ -398,7 +398,7 @@ void render()
 {
 	scene.beginFrame();
 	vector<Rect> buckets = getBucketsList();
-	
+
 	if (!scene.settings.interactive && (scene.settings.wantPrepass || scene.settings.gi)) {
 		// We render the whole screen in three passes.
 		// 1) First pass - use very coarse resolution rendering, tracing a single ray for a 16x16 block:
@@ -417,12 +417,12 @@ void render()
 
 	MainRenderTask mtrend(buckets);
 	pool.run(&mtrend, scene.settings.numThreads);
-	
+
 	if (scene.settings.needAApass()) {
-		// the previous render was without any anti-aliasing whatsoever, and the 
+		// the previous render was without any anti-aliasing whatsoever, and the
 		// scene file specifies that AA is desired. Detect edges here, and refine in another pass:
 		detectAApixels(buckets);
-		
+
 		RefineRenderTask refineTask(buckets);
 		pool.run(&refineTask, scene.settings.numThreads);
 	}
@@ -443,16 +443,16 @@ void mainloop(void)
 	const double MOVEMENT_PER_SEC = 20;
 	const double ROTATION_PER_SEC = 50;
 	const double SENSITIVITY = 0.1;
-	
+
 	while (running) {
 		Uint32 ticksSaved = SDL_GetTicks();
 		render();
 		displayVFB(vfb);
 		// timeDelta is how much time the frame took to render:
 		double timeDelta = (SDL_GetTicks() - ticksSaved) / 1000.0;
-		// 
+		//
 		SDL_Event ev;
-		
+
 		while (SDL_PollEvent(&ev)) {
 			switch (ev.type) {
 				case SDL_QUIT:
@@ -471,20 +471,20 @@ void mainloop(void)
 				}
 			}
 		}
-		
-		Uint8* keystate = SDL_GetKeyState(NULL);
+
+		const Uint8* keystate = SDL_GetKeyboardState(NULL);
 		double movement = MOVEMENT_PER_SEC * timeDelta;
 		double rotation = ROTATION_PER_SEC * timeDelta;
-		if (keystate[SDLK_UP]) cam.move(0, +movement);
-		if (keystate[SDLK_DOWN]) cam.move(0, -movement);
-		if (keystate[SDLK_LEFT]) cam.move(-movement, 0);
-		if (keystate[SDLK_RIGHT]) cam.move(+movement, 0);
+		if (keystate[SDL_SCANCODE_UP]) cam.move(0, +movement);
+		if (keystate[SDL_SCANCODE_DOWN]) cam.move(0, -movement);
+		if (keystate[SDL_SCANCODE_LEFT]) cam.move(-movement, 0);
+		if (keystate[SDL_SCANCODE_RIGHT]) cam.move(+movement, 0);
 
-		if (keystate[SDLK_KP8]) cam.rotate(0, +rotation);
-		if (keystate[SDLK_KP2]) cam.rotate(0, -rotation);
-		if (keystate[SDLK_KP4]) cam.rotate(+rotation, 0);
-		if (keystate[SDLK_KP6]) cam.rotate(-rotation, 0);
-		
+		if (keystate[SDL_SCANCODE_KP_8]) cam.rotate(0, +rotation);
+		if (keystate[SDL_SCANCODE_KP_2]) cam.rotate(0, -rotation);
+		if (keystate[SDL_SCANCODE_KP_4]) cam.rotate(+rotation, 0);
+		if (keystate[SDL_SCANCODE_KP_6]) cam.rotate(-rotation, 0);
+
 		int deltax, deltay;
 		SDL_GetRelativeMouseState(&deltax, &deltay);
 		cam.rotate(-SENSITIVITY * deltax, -SENSITIVITY*deltay);
@@ -502,29 +502,27 @@ int main ( int argc, char** argv )
 		printf("Could not parse the scene!\n");
 		return -1;
 	}
-	
 	initGraphics(scene.settings.frameWidth, scene.settings.frameHeight,
 		scene.settings.interactive && scene.settings.fullscreen);
 	setWindowCaption("Quad Damage: preparing...");
-	
 	if (scene.settings.numThreads == 0)
 		scene.settings.numThreads = get_processor_count();
-	
+
 	pool.preload_threads(scene.settings.numThreads);
-	
+
 	scene.beginRender();
-	
+
 	if (scene.settings.interactive) {
 		mainloop();
 	} else {
-		
+
 		setWindowCaption("Quad Damage: rendering...");
 		Uint32 startTicks = SDL_GetTicks();
 		renderScene_threaded();
 		Uint32 elapsedMs = SDL_GetTicks() - startTicks;
 		printf("Render took %.2fs\n", elapsedMs / 1000.0f);
 		setWindowCaption("Quad Damage: rendered in %.2fs\n", elapsedMs / 1000.0f);
-		
+
 		displayVFB(vfb);
 		waitForUserExit();
 	}

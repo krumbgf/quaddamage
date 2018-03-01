@@ -4,58 +4,55 @@
 	<Project>
 		<Option title="qdamage" />
 		<Option pch_mode="2" />
-		<Option compiler="gcc" />
+		<Option compiler="gnu_gcc_compiler_720_64bit" />
 		<Build>
 			<Target title="Debug">
-				<Option output="bin/Debug/qdamage" prefix_auto="1" extension_auto="1" />
-				<Option object_output="obj/Debug/" />
+				<Option output="bin/Debug64/qdamage" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug64/" />
 				<Option type="1" />
-				<Option compiler="gcc" />
+				<Option compiler="gnu_gcc_compiler_720_64bit" />
 				<Compiler>
 					<Add option="-g" />
 				</Compiler>
 			</Target>
 			<Target title="Release">
-				<Option output="bin/Release/qdamage" prefix_auto="1" extension_auto="1" />
-				<Option object_output="obj/Release/" />
+				<Option output="bin/Release64/qdamage" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release64/" />
 				<Option type="0" />
-				<Option compiler="gcc" />
+				<Option compiler="gnu_gcc_compiler_720_64bit" />
 				<Compiler>
-					<Add option="-march=corei7-avx" />
+					<Add option="-march=corei7" />
 					<Add option="-O3" />
 					<Add option="-ffast-math" />
 				</Compiler>
-				<Linker>
-					<Add option="-s" />
-				</Linker>
 			</Target>
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
-			<Add option="-std=c++0x" />
-			<Add option="-m32" />
+			<Add option="-std=c++11" />
+			<Add option="-m64" />
 			<Add directory="SDK/headers/SDL2/include" />
 			<Add directory="SDK/headers/OpenEXR/include/OpenEXR" />
-			<Add directory="SDK/CodeBlocks_WIN/86/dll" />
 		</Compiler>
 		<Linker>
-			<Add option="-m32" />
+			<Add option="-m64" />
 			<Add library="mingw32" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libSDL2main.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libSDL2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libSDL2main.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libSDL2.dll.a" />
 			<Add library="user32" />
 			<Add library="gdi32" />
 			<Add library="winmm" />
 			<Add library="dxguid" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libIlmImf-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libImath-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libIex-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libHalf.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libIlmThread-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libIexMath-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libIlmImfUtil-2_2.dll.a" />
-			<Add library="SDK/CodeBlocks_WIN/86/lib/libzlib.dll.a" />
-			<Add directory="SDK/CodeBlocks_WIN/86/lib" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libIlmImf-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libImath-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libIex-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libHalf.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libIlmThread-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libIexMath-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libIlmImfUtil-2_2.dll.a" />
+			<Add library="SDK/CodeBlocks_WIN/64/lib/libzlib.dll.a" />
+			<Add directory="SDK/CodeBlocks_WIN/64/lib" />
+			<Add directory="SDK/CodeBlocks_WIN/64/bin" />
 		</Linker>
 		<Unit filename="src/bbox.h" />
 		<Unit filename="src/bitmap.cpp" />

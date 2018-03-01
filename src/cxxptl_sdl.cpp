@@ -240,7 +240,7 @@ int sdl_thread_proc(void* data)
 
 void new_thread(SDL_Thread **handle, ThreadInfoStruct *info)
 {
-	*handle = SDL_CreateThread(sdl_thread_proc, info);
+	*handle = SDL_CreateThread(sdl_thread_proc,NULL, info);
 }
  
 void ThreadPool::one_more_thread(void)
